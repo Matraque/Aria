@@ -1,0 +1,81 @@
+[
+    {
+      "type": "function",
+      "name": "create_playlist",
+      "description": "Create a new empty Spotify playlist.",
+      "strict": true,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Playlist title to show in Spotify UI. Keep it short and human friendly."
+          },
+          "description": {
+            "type": "string",
+            "description": "Short sentence describing the vibe / context of the playlist."
+          },
+          "public": {
+            "type": "boolean",
+            "description": "Whether the playlist should be public (true = visible on profile). Must always be provided explicitly."
+          }
+        },
+        "required": ["name", "description", "public"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "function",
+      "name": "search_items",
+      "description": "Get Spotify catalog information about albums, artists, playlists, tracks, shows, episodes or audiobooks that match a keyword string.",
+      "strict": true,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Your search query. You can narrow down your search using field filters. The available filters are album, artist, track, year, upc, tag:hipster, tag:new, isrc, and genre. Each field filter only applies to certain result types. The artist and year filters can be used while searching albums, artists and tracks. You can filter on a single year or a range (e.g. 1955-1960). The album filter can be used while searching albums and tracks. The genre filter can be used while searching artists and tracks. The isrc and track filters can be used while searching tracks. The upc, tag:new and tag:hipster filters can only be used while searching albums. The tag:new filter will return albums released in the past two weeks and tag:hipster can be used to return only albums with the lowest 10% popularity."
+          },
+          "item_types": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Allowed values: 'artist', 'track', 'album', 'playlist', 'show', 'episode', 'audiobook'."
+            },
+            "description": "List of Spotify entity types you want back. The tool will join them into the 'type=' param for Spotify's /search endpoint."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "How many results per type."
+          }
+        },
+        "required": ["query", "item_types", "limit"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "function",
+      "name": "add_tracks",
+      "description": "Add multiple track URIs (example: spotify:track:6rqhFgbbKwnb9MLmUQDhG6) to an existing playlist. Call this to actually fill the playlist once you have URIs",
+      "strict": true,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "playlist_id": {
+            "type": "string",
+            "description": "The playlist ID returned by create_playlist.id. NOT the full URL."
+          },
+          "uris": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "A Spotify URI like 'spotify:track:5McwFcM7EqVUBvKZBuMl1L'"
+            },
+            "description": "List of track URIs to insert into the playlist. Max 100 per call."
+          }
+        },
+        "required": ["playlist_id", "uris"],
+        "additionalProperties": false
+      }
+    }
+  ]
