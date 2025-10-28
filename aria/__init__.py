@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 from flask import Flask
 from dotenv import load_dotenv
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import AppConfig, ConfigError, load_config
 from .routes.main import bp as main_bp
@@ -36,6 +38,12 @@ def create_app() -> Flask:
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
     )
+    if os.getenv("FORCE_HTTPS", "1") == "1":
+        app.config["SESSION_COOKIE_SECURE"] = True
+        app.config["PREFERRED_URL_SCHEME"] = "https"
+
+    if os.getenv("TRUST_PROXY_HEADERS", "1") == "1":
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)  # type: ignore[assignment]
 
     app.extensions["openai_client"] = create_openai_client(config.openai.api_key)
 
@@ -61,4 +69,3 @@ def _configure_logging(app: Flask) -> None:
     handler.setLevel(logging.INFO)
     app.logger.setLevel(logging.INFO)
     app.logger.addHandler(handler)
-
