@@ -62,6 +62,8 @@ function updateResultCard(agentResult) {
         return;
     }
 
+    window.ARIA_INITIAL_RESULT = agentResult;
+
     isSpotifyConnected = true;
     window.ARIA_SPOTIFY_CONNECTED = true;
 
@@ -224,6 +226,29 @@ async function makeGenerateRequest(promptVal) {
     }
 }
 
+async function fetchLatestResult() {
+    try {
+        const res = await fetch('/latest_result', {
+            headers: {
+                'Accept': 'application/json',
+            },
+        });
+
+        if (res.status === 204) {
+            return null;
+        }
+
+        if (!res.ok) {
+            return null;
+        }
+
+        return await res.json();
+    } catch (fallbackErr) {
+        console.error("latest_result fetch failed", fallbackErr);
+        return null;
+    }
+}
+
 async function runAuthFlow(authUrl, promptVal) {
     stopOverlayCycling();
     setOverlayMessage(AUTH_WAIT_MESSAGE);
@@ -308,7 +333,13 @@ async function handleSubmit(e) {
         } else if (err && err.code === 'navigation') {
             // l'onglet a été redirigé vers Spotify, rien à faire ici
         } else {
-            alert("Désolé, un truc a cassé pendant la génération.");
+            const fallbackResult = await fetchLatestResult();
+            if (fallbackResult) {
+                updateResultCard(fallbackResult);
+                alert("Ta playlist est prête mais la réponse a mis trop de temps. Je l’ai récupérée pour toi !");
+            } else {
+                alert("Désolé, un truc a cassé pendant la génération.");
+            }
         }
     } finally {
         hideOverlay();

@@ -89,6 +89,14 @@ def generate_async() -> Response:
     return jsonify(agent_result), 200
 
 
+@bp.get("/latest_result")
+def latest_result() -> Response:
+    result = session.get("last_result")
+    if not result:
+        return Response(status=204)
+    return jsonify(result), 200
+
+
 @bp.get("/callback")
 def callback() -> str | Response:
     error = request.args.get("error")
