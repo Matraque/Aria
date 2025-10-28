@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def _load_tools_schema() -> List[Dict[str, Any]]:
-    with resources.files("prompt_to_playlist.data").joinpath("tools.json").open("r", encoding="utf-8") as fp:
+    with resources.files("aria.data").joinpath("tools.json").open("r", encoding="utf-8") as fp:
         return json.load(fp)
 
 
@@ -210,4 +210,3 @@ def run_agent_for_user(
                 "call_id": call_id,
                 "output": json.dumps(result),
             })
-
