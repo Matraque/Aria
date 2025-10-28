@@ -258,3 +258,5 @@ temp/
 *.bak
 *.backup
 *.old
+
+.spotify_cache
