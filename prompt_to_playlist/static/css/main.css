@@ -1,0 +1,495 @@
+:root {
+    --bg-main: #0f0f0f;
+    --bg-card: #1a1a1a;
+    --bg-input: #2a2a2a;
+    --text-primary: #fff;
+    --text-dim: #9ca3af;
+    --accent: #1db954;
+    --radius-lg: 20px;
+    --radius-md: 12px;
+    --border-card: rgba(255,255,255,0.07);
+
+    /* position "lumière principale" par défaut -> haut / gauche */
+    --light-base-x: 30%;
+    --light-base-y: 25%;
+
+    /* valeurs animées qu'on va très légèrement bouger */
+    --light-x: 30%;
+    --light-y: 25%;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter", Roboto, "Helvetica Neue", sans-serif;
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+}
+
+.page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+}
+
+.shell {
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    flex-grow: 1;
+}
+
+/* HEADER */
+header.header-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center; /* <= ALIGNEMENT vertical avatar / texte */
+    gap: 12px;
+}
+
+/* ---- SPHÈRE ARIA -------------------------------------------------- */
+
+/* le wrapper se déplace / grossit mais reste toujours un cercle vu de face */
+.sphere-wrapper {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    will-change: transform;
+    filter:
+        drop-shadow(0 0 20px rgba(139,92,246,0.7))
+        drop-shadow(0 0 60px rgba(29,185,84,0.45));
+    animation: pulseGlow 4s ease-in-out infinite;
+}
+
+/* même chose mais un peu plus gros pour le loader */
+.loader-avatar-wrapper {
+    width: 48px;
+    height: 48px;
+}
+
+/* la boule elle-même */
+.sphere {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    pointer-events: none;
+    /* on simule un vrai volume :
+       - radial main: couleur/ombre globale
+       - on laisse la highlight principale top-left
+       NOTE: on réinjecte --light-x / --light-y, très peu animées,
+       donc pas d'effet "gros oeil qui te regarde", juste un léger roll. */
+    background:
+        radial-gradient(
+            circle at var(--light-x) var(--light-y),
+            #ffffff 0%,
+            #ffe0f5 18%,
+            #c9a6ff 32%,
+            #8b5cf6 55%,
+            #2b125a 72%,
+            #000000 100%
+        ),
+        radial-gradient(
+            circle at 50% 120%,
+            rgba(255,255,255,0.25) 0%,
+            rgba(0,0,0,0) 70%
+        );
+    box-shadow:
+        0 0 30px rgba(139,92,246,0.6),
+        0 0 80px rgba(29,185,84,0.4);
+    transform-style: preserve-3d;
+    will-change: background-position;
+}
+
+/* glow de réflexion basse + highlight glossy haut-gauche */
+.sphere::before {
+    /* rebond de lumière en bas de la boule */
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle at 50% 120%,
+        rgba(255,255,255,0.45) 0%,
+        rgba(255,255,255,0) 70%
+    );
+    filter: blur(8px);
+    opacity: 0.4;
+}
+
+.sphere::after {
+    /* flash brillant en haut-gauche */
+    content: "";
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    left: 0;
+    top: 0;
+    background: radial-gradient(
+        circle at 28% 28%,
+        rgba(255,255,255,0.9) 0%,
+        rgba(255,255,255,0.6) 12%,
+        rgba(255,255,255,0) 32%
+    );
+    filter: blur(6px);
+    opacity: 0.8;
+    mix-blend-mode: screen;
+    /* petit mouvement organique, comme un reflet qui bouge légèrement */
+    animation: specOrbit 6s ease-in-out infinite alternate;
+}
+
+@keyframes specOrbit {
+    0% {
+        transform: translate(-2px,-2px) scale(1);
+        opacity: 0.75;
+    }
+    100% {
+        transform: translate(2px,2px) scale(1.05);
+        opacity: 0.9;
+    }
+}
+
+@keyframes pulseGlow {
+    0%,100% {
+        filter:
+            drop-shadow(0 0 18px rgba(139,92,246,0.55))
+            drop-shadow(0 0 48px rgba(29,185,84,0.35));
+    }
+    50% {
+        filter:
+            drop-shadow(0 0 32px rgba(139,92,246,0.95))
+            drop-shadow(0 0 90px rgba(29,185,84,0.55));
+    }
+}
+
+/* ---- FIN SPHÈRE -------------------------------------------------- */
+
+.aria-meta {
+    display: flex;
+    flex-direction: column;
+}
+
+.aria-topline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.aria-badge {
+    background: rgba(29,185,84,0.14);
+    color: var(--accent);
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 500;
+    padding: 3px 6px;
+    border-radius: 6px;
+    border: 1px solid rgba(29,185,84,0.4);
+}
+
+/* MAIN CARD */
+.main-card {
+    background-color: var(--bg-card);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-card);
+    box-shadow:
+        0 24px 60px rgb(0 0 0 / 0.8),
+        0 2px 4px rgb(0 0 0 / 0.6);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.headline {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.3;
+}
+
+form.generate-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.input-shell {
+    position: relative;
+    background-color: var(--bg-input);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 0 20px rgba(0,0,0,0.6) inset;
+    transition: border 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input-shell:focus-within {
+    border: 1px solid var(--accent);
+    box-shadow:
+        0 0 10px rgba(29,185,84,0.35),
+        0 0 40px rgba(29,185,84,0.2);
+}
+
+textarea.prompt-input {
+    width: 100%;
+    background: transparent;
+    border: 0;
+    resize: none;
+    outline: none;
+    padding: 14px 14px 14px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.4;
+    min-height: 92px;
+    font-family: inherit;
+}
+
+button.generate-btn {
+    appearance: none;
+    border: 0;
+    outline: 0;
+    cursor: pointer;
+    background: var(--accent);
+    color: #000;
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 1.2;
+    padding: 14px 16px;
+    border-radius: var(--radius-md);
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    box-shadow:
+        0 20px 40px rgba(29,185,84,0.25),
+        0 2px 4px rgba(0,0,0,0.6);
+
+    transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+}
+
+button.generate-btn:hover:enabled {
+    transform: translateY(-1px);
+    box-shadow:
+        0 28px 60px rgba(29,185,84,0.45),
+        0 4px 8px rgba(0,0,0,0.8);
+}
+
+button.generate-btn:active:enabled {
+    transform: translateY(0);
+    box-shadow:
+        0 12px 24px rgba(29,185,84,0.2),
+        0 2px 4px rgba(0,0,0,0.8);
+}
+
+.tiny-legal {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-dim);
+    line-height: 1.4;
+    text-align: center;
+}
+
+/* RESULT CARD */
+.result-card {
+    background-color: var(--bg-card);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-card);
+    box-shadow:
+        0 24px 60px rgb(0 0 0 / 0.8),
+        0 2px 4px rgb(0 0 0 / 0.6);
+    padding: 20px;
+    display: none; /* caché tant qu'on n'a rien */
+    flex-direction: column;
+    gap: 16px;
+
+    opacity: 0;
+    transform: translateY(8px);
+}
+
+.result-card.show {
+    display: flex;
+    animation: fadeSlideUp 0.3s ease forwards;
+}
+
+@keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.playlist-headrow {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.playlist-name {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--text-primary);
+}
+
+.playlist-url-btn {
+    display: inline-block;
+    background: var(--accent);
+    color: #000;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    box-shadow:
+        0 16px 36px rgba(29,185,84,0.3),
+        0 2px 4px rgba(0,0,0,0.5);
+    white-space: nowrap;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.playlist-url-btn:hover {
+    transform: translateY(-1px);
+    box-shadow:
+        0 24px 50px rgba(29,185,84,0.45),
+        0 4px 8px rgba(0,0,0,0.8);
+}
+
+.result-summary-block {
+    background: rgba(255,255,255,0.03);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255,255,255,0.07);
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* LOADING OVERLAY */
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at 50% 30%, rgba(32,32,32,0.6) 0%, rgba(0,0,0,0.9) 70%);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 9999;
+    color: var(--text-primary);
+}
+
+.loading-overlay.active {
+    display: flex;
+}
+
+.loading-card {
+    background-color: rgba(20,20,20,0.8);
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow:
+        0 30px 80px rgba(0,0,0,0.95),
+        0 2px 4px rgba(0,0,0,0.7);
+    width: 100%;
+    max-width: 320px;
+    padding: 20px;
+    text-align: center;
+
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+
+    animation: fadeSlideUp 0.25s ease forwards;
+}
+
+.loader-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.loader-step {
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.4;
+    color: var(--text-dim);
+    min-height: 2.6em;
+    white-space: pre-line;
+}
+
+.progress-bar-shell {
+    position: relative;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.07);
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        rgba(29,185,84,0) 0%,
+        rgba(29,185,84,0.6) 50%,
+        rgba(29,185,84,0) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.2s linear infinite;
+}
+
+@keyframes shimmer {
+    0%   { background-position-x: 0%; }
+    100% { background-position-x: 200%; }
+}
+
+/* FOOTER collé en bas */
+footer.page-footer {
+    margin-top: auto;
+    padding-top: 40px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.4;
+}
+
+footer .brand {
+    display: block;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+@media (max-width: 400px) {
+    .page {
+        padding: 20px;
+    }
+
+    .playlist-headrow {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .playlist-url-btn {
+        text-align: center;
+    }
+}

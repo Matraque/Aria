@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <meta
+        name="viewport"
+        content="width=device-width,initial-scale=1.0,minimum-scale=1.0"
+    />
+    <title>Aria — Spotify playlist generator</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+</head>
+<body>
+<div class="page">
+    <div class="shell">
+
+        <!-- HEADER -->
+        <header class="header-row">
+            <div class="sphere-wrapper aria-avatar-wrapper">
+                <div class="sphere aria-sphere"></div>
+            </div>
+
+            <div class="aria-meta">
+                <div class="aria-topline">
+                    <div>Aria</div>
+                    <div class="aria-badge">AI generated playlists</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN INPUT CARD -->
+        <section class="main-card">
+            <div class="headline">
+                Décris ton mood
+            </div>
+
+            <form class="generate-form" id="generate-form" action="/generate_async" method="post">
+                <div class="input-shell">
+                    <textarea
+                        class="prompt-input"
+                        name="prompt"
+                        id="prompt"
+                        rows="4"
+                        placeholder="Une horde de sangliers tapant du sabot dans la forêt sur de la hard techno à 180 BPM."
+                    >{{ pending_prompt }}</textarea>
+                </div>
+
+                <button class="generate-btn" type="submit" id="generate-btn">
+                    Générer ma playlist
+                </button>
+            </form>
+
+            <div class="tiny-legal">
+                Aria créera la playlist dans ton Spotify.
+            </div>
+        </section>
+
+        <!-- RESULT CARD -->
+        <section class="result-card" id="result-card">
+            <div class="playlist-headrow">
+                <div class="playlist-name" id="playlist-name">
+                    <!-- rempli dynamiquement -->
+                </div>
+
+                <a
+                    class="playlist-url-btn"
+                    id="playlist-url-btn"
+                    href="#"
+                    target="_blank"
+                    rel="noopener"
+                    style="display:none;"
+                >
+                    Ouvrir dans Spotify
+                </a>
+            </div>
+
+            <div class="result-summary-block" id="result-summary" style="display:none;">
+                <!-- texte ambiance -->
+            </div>
+        </section>
+
+        <footer class="page-footer">
+            <span class="brand">Aria</span>
+            <div>Génère ta bande-son.</div>
+        </footer>
+
+    </div>
+</div>
+
+<!-- LOADING OVERLAY -->
+<div class="loading-overlay" role="alert" aria-live="polite" id="loading-overlay">
+    <div class="loading-card">
+        <div class="sphere-wrapper loader-avatar-wrapper">
+            <div class="sphere loader-sphere"></div>
+        </div>
+
+        <div class="loader-title">Aria recherche des pépites</div>
+        <div class="loader-step" id="loader-step">Création de ta playlist…</div>
+        <div class="progress-bar-shell">
+            <div class="progress-bar-fill"></div>
+        </div>
+    </div>
+</div>
+    <script src="{{ url_for('static', filename='js/home.js') }}" defer></script>
+
+</body>
+</html>

@@ -1,12 +1,23 @@
+from __future__ import annotations
+
 import json
+import logging
+import importlib.resources as resources
 from typing import Any, Dict, List
+
 from openai import OpenAI
 import spotipy
 from spotipy.exceptions import SpotifyException
 
-# tools_schema charge seulement create_playlist, search_items, add_tracks
-with open("tools.json", "r") as f:
-    tools_schema = json.load(f)
+logger = logging.getLogger(__name__)
+
+
+def _load_tools_schema() -> List[Dict[str, Any]]:
+    with resources.files("prompt_to_playlist.data").joinpath("tools.json").open("r", encoding="utf-8") as fp:
+        return json.load(fp)
+
+
+tools_schema = _load_tools_schema()
 
 
 def build_tool_impls(sp: spotipy.Spotify) -> Dict[str, Any]:
@@ -30,8 +41,9 @@ def build_tool_impls(sp: spotipy.Spotify) -> Dict[str, Any]:
     def add_tracks(playlist_id: str, uris: List[str]) -> Dict[str, Any]:
         if not uris:
             return {"added": 0}
-        sp.playlist_add_items(playlist_id=playlist_id, items=uris[:100])
-        return {"added": len(uris[:100])}
+        limited = uris[:100]
+        sp.playlist_add_items(playlist_id=playlist_id, items=limited)
+        return {"added": len(limited)}
 
     def search_items(query: str, item_types: List[str], limit: int) -> Dict[str, Any]:
         type_param = ",".join(item_types)
@@ -39,7 +51,6 @@ def build_tool_impls(sp: spotipy.Spotify) -> Dict[str, Any]:
 
         out: Dict[str, Any] = {}
 
-        # tracks
         if "tracks" in results and results["tracks"] and "items" in results["tracks"]:
             tracks_out = []
             for t in results["tracks"]["items"]:
@@ -51,7 +62,6 @@ def build_tool_impls(sp: spotipy.Spotify) -> Dict[str, Any]:
                 })
             out["tracks"] = tracks_out
 
-        # artists
         if "artists" in results and results["artists"] and "items" in results["artists"]:
             artists_out = []
             for a in results["artists"]["items"]:
@@ -62,7 +72,6 @@ def build_tool_impls(sp: spotipy.Spotify) -> Dict[str, Any]:
                 })
             out["artists"] = artists_out
 
-        # albums
         if "albums" in results and results["albums"] and "items" in results["albums"]:
             albums_out = []
             for al in results["albums"]["items"]:
@@ -89,20 +98,17 @@ def run_agent_for_user(
     model_name: str = "gpt-5-mini",
 ) -> Dict[str, str]:
     """
-    On renvoie maintenant un dict:
+    Generates a playlist via OpenAI tool calling and returns a summary payload:
     {
-        "summary": <texte final du modèle>,
-        "playlist_url": <lien spotify ou "" si pas dispo>,
-        "playlist_name": <nom playlist ou "" si pas dispo>
+        "summary": "...",
+        "playlist_url": "...",
+        "playlist_name": "..."
     }
     """
 
     tool_impls = build_tool_impls(sp)
-
-    # on va capturer la toute première playlist créée par l'IA
     last_playlist_info: Dict[str, Any] | None = None
 
-    # historique qu'on envoie à OpenAI
     input_list: list[Dict[str, Any]] = [
         {
             "role": "system",
@@ -129,7 +135,7 @@ def run_agent_for_user(
 
     while True:
         step_index += 1
-        print(f"\n──────── STEP {step_index} → appel du modèle OpenAI ────────")
+        logger.info("Starting agent step %s", step_index)
 
         response = openai_client.responses.create(
             model=model_name,
@@ -139,8 +145,6 @@ def run_agent_for_user(
         )
 
         new_items = list(response.output)
-
-        # on garde trace de ce que le modèle vient de dire/appeler
         input_list += new_items
 
         function_calls = []
@@ -149,75 +153,61 @@ def run_agent_for_user(
         for item in new_items:
             if item.type == "function_call":
                 function_calls.append(item)
+            elif item.type == "message" and getattr(item, "content", None):
+                for block in item.content:
+                    if block.type == "output_text":
+                        final_text_chunks.append(block.text)
 
-            elif item.type == "message":
-                # texte libre
-                if hasattr(item, "content") and item.content:
-                    for block in item.content:
-                        if block.type == "output_text":
-                            final_text_chunks.append(block.text)
-
-        # petit debug console
         if final_text_chunks:
-            print("🧠 Modèle (texte candidat) :")
-            for chunk in final_text_chunks:
-                print("   ", chunk.strip())
+            logger.debug("Model candidate response: %s", " ".join(chunk.strip() for chunk in final_text_chunks))
 
-        # si plus de tools -> on a fini => on retourne tout ce qu'il faut pour l'UI
         if not function_calls:
             summary_text = "\n".join(final_text_chunks).strip()
-
             return {
                 "summary": summary_text if summary_text else "(aucun texte du modèle)",
                 "playlist_url": (last_playlist_info.get("url") if last_playlist_info else ""),
                 "playlist_name": (last_playlist_info.get("name") if last_playlist_info else ""),
             }
 
-        # sinon on exécute les tool calls demandés par le modèle
         for fc in function_calls:
             name = fc.name
             raw_args = fc.arguments
             call_id = fc.call_id
 
-            print(f"\n🔧 FUNCTION CALL demandé par le modèle : {name}({raw_args})")
+            logger.debug("Executing tool call '%s' with payload: %s", name, raw_args)
 
-            # parse args safe
             try:
                 args = json.loads(raw_args) if raw_args else {}
             except json.JSONDecodeError:
-                print("   ↳ ERREUR: JSON invalide envoyé par le modèle")
+                logger.exception("Invalid JSON payload received from model")
                 args = {}
 
-            # exécuter notre fonction python locale
             if name not in tool_impls:
-                print("   ↳ ERREUR: fonction inconnue côté serveur:", name)
+                logger.error("Unknown tool requested by model: %s", name)
                 result = {"error": f"unknown function {name}"}
             else:
                 try:
                     py_fn = tool_impls[name]
                     result = py_fn(**args)
-                    print("   ↳ RESULTAT PYTHON =", result)
-
-                    # si c'était create_playlist on garde l'info pour l'UI ❤️
                     if name == "create_playlist" and isinstance(result, dict):
                         last_playlist_info = result
-                        if "url" in result:
-                            print(f"   ↳ ✅ Playlist créée pour cet utilisateur : {result['url']}")
-
-                except SpotifyException as e:
-                    print("   ↳ EXCEPTION Spotify en exécutant la fonction :", e)
+                        playlist_url = result.get("url")
+                        if playlist_url:
+                            logger.info("Created playlist at %s", playlist_url)
+                except SpotifyException as exc:
+                    logger.exception("Spotify API error while executing tool '%s'", name)
                     result = {
                         "error": "spotify_api_error",
-                        "status": getattr(e, "http_status", None),
-                        "message": str(e),
+                        "status": getattr(exc, "http_status", None),
+                        "message": str(exc),
                     }
-                except Exception as e:
-                    print("   ↳ EXCEPTION en exécutant la fonction :", e)
-                    result = {"error": str(e)}
+                except Exception as exc:  # pragma: no cover - defensive
+                    logger.exception("Unexpected error while executing tool '%s'", name)
+                    result = {"error": str(exc)}
 
-            # on répond au modèle avec le "function_call_output"
             input_list.append({
                 "type": "function_call_output",
                 "call_id": call_id,
                 "output": json.dumps(result),
             })
+
