@@ -212,9 +212,9 @@ def run_agent_for_user(
                 logger.error("Unknown tool requested by model: %s", name)
                 result = {"error": f"unknown function {name}"}
             else:
-        try:
-            py_fn = tool_impls[name]
-            result = py_fn(**args)
+                try:
+                    py_fn = tool_impls[name]
+                    result = py_fn(**args)
                     if name == "create_playlist" and isinstance(result, dict):
                         last_playlist_info = result
                         playlist_url = result.get("url")
