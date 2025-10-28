@@ -46,40 +46,6 @@ function notifyOpener(payload) {
     }
 }
 
-async function finishGenerationHere() {
-    try {
-        const res = await fetch("/finish_generation", {
-            method: "POST",
-        });
-
-        if (!res.ok) {
-            throw new Error("finish_generation failed");
-        }
-
-        const data = await res.json();
-        if (data.ok) {
-            notifyOpener({
-                type: "spotify-auth-success",
-                result: data.result || null,
-            });
-            window.location.href = "/";
-            return;
-        }
-        throw new Error("server said not ok");
-    } catch (err) {
-        console.error(err);
-        stopStepCycle();
-        loaderTitleEl.textContent = "Échec de la génération.";
-        loaderStepEl.textContent = "Recharge Aria et réessaie.";
-        errorEl.style.display = "block";
-        errorEl.textContent = "Impossible de terminer la génération automatiquement.";
-        notifyOpener({
-            type: "spotify-auth-error",
-            error: err && err.message ? err.message : "unknown_error",
-        });
-    }
-}
-
 function handleSuccess() {
     stopStepCycle();
 
@@ -105,10 +71,18 @@ function handleSuccess() {
             window.close();
         }, 1200);
     } else {
-        loaderTitleEl.textContent = "Aria finalise ta playlist…";
-        loaderStepEl.textContent = LOADING_STEPS[0];
-        startStepCycle();
-        finishGenerationHere();
+        loaderTitleEl.textContent = "Connexion réussie";
+        loaderStepEl.textContent = "Retour vers Aria…";
+        if (progressBarEl) {
+            progressBarEl.style.display = "none";
+        }
+        if (manualCloseEl) {
+            manualCloseEl.style.display = "none";
+        }
+        notifyOpener({ type: "spotify-auth-success" });
+        setTimeout(() => {
+            window.location.replace("/");
+        }, 900);
     }
 }
 

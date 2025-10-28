@@ -14,12 +14,7 @@ const GENERATING_BUTTON_LABEL = "Génération en cours…";
 const AUTH_PROMPT_MESSAGE = "Connexion à Spotify en cours…";
 const AUTH_WAIT_MESSAGE = "Autorise Aria dans la fenêtre Spotify pour continuer…";
 const AUTH_CONFIRM_BUTTON_LABEL = "Valide la connexion dans la fenêtre Spotify…";
-const FINALISING_MESSAGE = "Aria finalise ta playlist…";
-
-const SERVER_ERROR_MESSAGES = {
-    no_prompt: "La session a expiré. Recharge Aria et relance la génération.",
-    no_spotify_client: "Connexion à Spotify perdue. Relance la génération.",
-};
+const FINALISING_MESSAGE = "Aria recherche des pépites…";
 
 const formEl = document.getElementById('generate-form');
 const btnEl = document.getElementById('generate-btn');
@@ -51,6 +46,16 @@ const initialResult = (() => {
     }
     return val;
 })();
+
+const initialPendingPrompt = (() => {
+    const val = window.ARIA_PENDING_PROMPT;
+    if (typeof val === "string") {
+        return val.trim();
+    }
+    return "";
+})();
+
+let autoResumeTriggered = false;
 
 function updateResultCard(agentResult) {
     if (!agentResult) {
@@ -199,50 +204,27 @@ function waitForAuthCompletion(authUrl) {
     });
 }
 
-async function finishGenerationViaServer() {
-    let response;
+function buildPromptFormData(promptVal) {
+    const formData = new FormData();
+    formData.append('prompt', promptVal);
+    return formData;
+}
+
+async function makeGenerateRequest(promptVal) {
     try {
-        response = await fetch("/finish_generation", {
-            method: "POST",
+        return await fetch('/generate_async', {
+            method: 'POST',
+            body: buildPromptFormData(promptVal),
         });
     } catch (networkErr) {
         throw {
-            code: "network",
-            message: "Connexion perdue pendant la finalisation.",
+            code: 'network',
+            message: "Connexion perdue pendant la génération.",
         };
     }
-
-    let payload = null;
-    try {
-        payload = await response.json();
-    } catch (jsonErr) {
-        payload = null;
-    }
-
-    if (!response.ok) {
-        const errorCode = payload && payload.error ? payload.error : null;
-        const message =
-            (errorCode && SERVER_ERROR_MESSAGES[errorCode]) ||
-            "Impossible de terminer la génération. Réessaie.";
-        throw {
-            code: "finish_generation_failed",
-            detail: errorCode,
-            message,
-        };
-    }
-
-    if (!payload || !payload.ok || !payload.result) {
-        throw {
-            code: "finish_generation_failed",
-            detail: "unexpected_payload",
-            message: "Réponse inattendue du serveur Aria.",
-        };
-    }
-
-    return payload.result;
 }
 
-async function runAuthFlow(authUrl) {
+async function runAuthFlow(authUrl, promptVal) {
     stopOverlayCycling();
     setOverlayMessage(AUTH_WAIT_MESSAGE);
     btnEl.textContent = AUTH_CONFIRM_BUTTON_LABEL;
@@ -252,17 +234,32 @@ async function runAuthFlow(authUrl) {
     setOverlayMessage(FINALISING_MESSAGE);
     btnEl.textContent = GENERATING_BUTTON_LABEL;
 
-    const agentResult = await finishGenerationViaServer();
-    updateResultCard(agentResult);
+    const res = await makeGenerateRequest(promptVal);
+
+    if (res.status === 401) {
+        throw {
+            code: 'auth_error',
+            message: "Connexion à Spotify requise.",
+        };
+    }
+
+    if (!res.ok) {
+        throw new Error("Erreur serveur");
+    }
+
+    return await res.json();
 }
 
 async function handleSubmit(e) {
     e.preventDefault();
 
-    const promptVal = document.getElementById('prompt').value.trim();
+    const promptInputEl = document.getElementById('prompt');
+    const promptVal = promptInputEl ? promptInputEl.value.trim() : "";
     if (!promptVal) {
         return; // pas de prompt => rien
     }
+
+    autoResumeTriggered = true;
 
     const wasConnected = isSpotifyConnected;
 
@@ -273,18 +270,19 @@ async function handleSubmit(e) {
     });
 
     try {
-        const formData = new FormData();
-        formData.append('prompt', promptVal);
-
-        const res = await fetch('/generate_async', {
-            method: 'POST',
-            body: formData,
-        });
+        const res = await makeGenerateRequest(promptVal);
 
         if (res.status === 401) {
-            const data = await res.json();
-            if (data.need_auth && data.auth_url) {
-                await runAuthFlow(data.auth_url);
+            let data = null;
+            try {
+                data = await res.json();
+            } catch (jsonErr) {
+                data = null;
+            }
+
+            if (data && data.need_auth && data.auth_url) {
+                const agentResult = await runAuthFlow(data.auth_url, promptVal);
+                updateResultCard(agentResult);
                 return;
             }
             throw {
@@ -305,10 +303,8 @@ async function handleSubmit(e) {
             alert("Connexion Spotify annulée avant validation.");
         } else if (err && err.code === 'auth_error') {
             alert(err.message || "Impossible de terminer la connexion à Spotify. Réessaie.");
-        } else if (err && err.code === 'finish_generation_failed') {
-            alert(err.message || "Impossible de terminer la génération.");
         } else if (err && err.code === 'network') {
-            alert("Connexion perdue pendant la finalisation. Vérifie ta connexion puis réessaie.");
+            alert(err.message || "Connexion perdue pendant la génération. Vérifie ta connexion puis réessaie.");
         } else if (err && err.code === 'navigation') {
             // l'onglet a été redirigé vers Spotify, rien à faire ici
         } else {
@@ -321,6 +317,15 @@ async function handleSubmit(e) {
 }
 
 formEl.addEventListener('submit', handleSubmit);
+
+window.addEventListener("DOMContentLoaded", () => {
+    if (!autoResumeTriggered && initialPendingPrompt && isSpotifyConnected && !initialResult) {
+        autoResumeTriggered = true;
+        setTimeout(() => {
+            formEl.requestSubmit();
+        }, 200);
+    }
+});
 
 if (initialResult) {
     updateResultCard(initialResult);
