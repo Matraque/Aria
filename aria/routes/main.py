@@ -24,7 +24,7 @@ bp = Blueprint("main", __name__)
 @bp.get("/")
 def index() -> str:
     pending_prompt = session.get("pending_prompt", "")
-    result = session.pop("last_result", None)
+    result = session.get("last_result")
 
     return render_template(
         "home.html",
@@ -54,6 +54,7 @@ def generate() -> str | Response:
     )
 
     session["pending_prompt"] = ""
+    session["last_result"] = agent_result
 
     return render_template(
         "home.html",
@@ -83,6 +84,7 @@ def generate_async() -> Response:
     )
 
     session["pending_prompt"] = ""
+    session["last_result"] = agent_result
 
     return jsonify(agent_result), 200
 

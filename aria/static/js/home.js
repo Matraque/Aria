@@ -44,6 +44,14 @@ const initialConnection = (() => {
 
 let isSpotifyConnected = initialConnection;
 
+const initialResult = (() => {
+    const val = window.ARIA_INITIAL_RESULT;
+    if (!val || typeof val !== "object") {
+        return null;
+    }
+    return val;
+})();
+
 function updateResultCard(agentResult) {
     if (!agentResult) {
         return;
@@ -313,6 +321,10 @@ async function handleSubmit(e) {
 }
 
 formEl.addEventListener('submit', handleSubmit);
+
+if (initialResult) {
+    updateResultCard(initialResult);
+}
 
 // -----------------------------------------------------------------
 // ORBE INTERACTIVE (boule qui flotte)

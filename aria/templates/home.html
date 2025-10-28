@@ -104,6 +104,7 @@
     <script src="{{ url_for('static', filename='js/home.js') }}" defer></script>
     <script>
         window.ARIA_SPOTIFY_CONNECTED = {{ connected | tojson }};
+        window.ARIA_INITIAL_RESULT = {{ result | tojson }};
     </script>
 
 </body>
