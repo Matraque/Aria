@@ -8,6 +8,19 @@ const LOADING_STEPS = [
 let loadingStepIndex = 0;
 let loadingInterval = null;
 
+const DEFAULT_BUTTON_LABEL = "Générer ma playlist";
+const CONNECT_BUTTON_LABEL = "Connexion Spotify en cours…";
+const GENERATING_BUTTON_LABEL = "Génération en cours…";
+const AUTH_PROMPT_MESSAGE = "Connexion à Spotify en cours…";
+const AUTH_WAIT_MESSAGE = "Autorise Aria dans la fenêtre Spotify pour continuer…";
+const AUTH_CONFIRM_BUTTON_LABEL = "Valide la connexion dans la fenêtre Spotify…";
+const FINALISING_MESSAGE = "Aria finalise ta playlist…";
+
+const SERVER_ERROR_MESSAGES = {
+    no_prompt: "La session a expiré. Recharge Aria et relance la génération.",
+    no_spotify_client: "Connexion à Spotify perdue. Relance la génération.",
+};
+
 const formEl = document.getElementById('generate-form');
 const btnEl = document.getElementById('generate-btn');
 const overlayEl = document.getElementById('loading-overlay');
@@ -18,37 +31,221 @@ const playlistNameEl = document.getElementById('playlist-name');
 const playlistUrlBtnEl = document.getElementById('playlist-url-btn');
 const resultSummaryEl = document.getElementById('result-summary');
 
-function showOverlay() {
-    overlayEl.classList.add('active');
-    loadingStepIndex = 0;
-    loaderStepEl.textContent = LOADING_STEPS[0];
+const initialConnection = (() => {
+    const val = window.ARIA_SPOTIFY_CONNECTED;
+    if (typeof val === "boolean") {
+        return val;
+    }
+    if (typeof val === "string") {
+        return val.toLowerCase() === "true";
+    }
+    return false;
+})();
 
-    loadingInterval = setInterval(() => {
-        loadingStepIndex = (loadingStepIndex + 1) % LOADING_STEPS.length;
-        loaderStepEl.textContent = LOADING_STEPS[loadingStepIndex];
-    }, 10000);
+let isSpotifyConnected = initialConnection;
+
+function updateResultCard(agentResult) {
+    if (!agentResult) {
+        return;
+    }
+
+    isSpotifyConnected = true;
+    window.ARIA_SPOTIFY_CONNECTED = true;
+
+    playlistNameEl.textContent = agentResult.playlist_name || "Ta playlist est prête";
+
+    if (agentResult.playlist_url) {
+        playlistUrlBtnEl.href = agentResult.playlist_url;
+        playlistUrlBtnEl.style.display = 'inline-block';
+    } else {
+        playlistUrlBtnEl.style.display = 'none';
+    }
+
+    if (agentResult.summary) {
+        resultSummaryEl.textContent = agentResult.summary;
+        resultSummaryEl.style.display = 'block';
+    } else {
+        resultSummaryEl.style.display = 'none';
+    }
+
+    if (!resultCardEl.classList.contains('show')) {
+        resultCardEl.classList.add('show');
+    }
 }
 
-function hideOverlay() {
-    overlayEl.classList.remove('active');
+function stopOverlayCycling() {
     if (loadingInterval) {
         clearInterval(loadingInterval);
         loadingInterval = null;
     }
 }
 
-function lockButton() {
+function setOverlayMessage(message) {
+    loaderStepEl.textContent = message;
+}
+
+function showOverlay(options = {}) {
+    const { message = null, cycling = true } = options;
+
+    overlayEl.classList.add('active');
+    stopOverlayCycling();
+
+    if (message) {
+        loaderStepEl.textContent = message;
+    } else {
+        loaderStepEl.textContent = LOADING_STEPS[0];
+    }
+
+    if (cycling) {
+        loadingStepIndex = 0;
+        loadingInterval = setInterval(() => {
+            loadingStepIndex = (loadingStepIndex + 1) % LOADING_STEPS.length;
+            loaderStepEl.textContent = LOADING_STEPS[loadingStepIndex];
+        }, 10000);
+    }
+}
+
+function hideOverlay() {
+    overlayEl.classList.remove('active');
+    stopOverlayCycling();
+}
+
+function lockButton(label = GENERATING_BUTTON_LABEL) {
     btnEl.disabled = true;
     btnEl.style.opacity = '0.7';
     btnEl.style.cursor = 'default';
-    btnEl.textContent = 'Génération en cours…';
+    btnEl.textContent = label;
 }
 
 function unlockButton() {
     btnEl.disabled = false;
     btnEl.style.opacity = '1';
     btnEl.style.cursor = 'pointer';
-    btnEl.textContent = 'Générer ma playlist';
+    btnEl.textContent = DEFAULT_BUTTON_LABEL;
+}
+
+function waitForAuthCompletion(authUrl) {
+    const authTab = window.open(authUrl, "_blank");
+    if (!authTab) {
+        window.location.href = authUrl;
+        return Promise.reject({
+            code: "navigation",
+            message: "Redirection vers Spotify.",
+        });
+    }
+
+    return new Promise((resolve, reject) => {
+        const origin = window.location.origin;
+        let pollId = null;
+
+        const cleanup = () => {
+            window.removeEventListener("message", onMessage);
+            if (pollId !== null) {
+                clearInterval(pollId);
+                pollId = null;
+            }
+        };
+
+        const closeTab = () => {
+            try {
+                if (!authTab.closed) {
+                    authTab.close();
+                }
+            } catch (closeErr) {
+                console.error("Impossible de fermer l'onglet Spotify", closeErr);
+            }
+        };
+
+        const onMessage = (event) => {
+            if (event.origin !== origin) {
+                return;
+            }
+            const payload = event.data || {};
+
+            if (payload.type === "spotify-auth-success") {
+                cleanup();
+                closeTab();
+                window.focus();
+                resolve();
+            } else if (payload.type === "spotify-auth-error") {
+                cleanup();
+                closeTab();
+                reject({
+                    code: "auth_error",
+                    message: payload.error || "Erreur d'authentification Spotify.",
+                });
+            }
+        };
+
+        window.addEventListener("message", onMessage);
+
+        pollId = window.setInterval(() => {
+            if (authTab.closed) {
+                cleanup();
+                reject({
+                    code: "popup_closed",
+                    message: "Fenêtre d'authentification fermée avant la validation.",
+                });
+            }
+        }, 600);
+    });
+}
+
+async function finishGenerationViaServer() {
+    let response;
+    try {
+        response = await fetch("/finish_generation", {
+            method: "POST",
+        });
+    } catch (networkErr) {
+        throw {
+            code: "network",
+            message: "Connexion perdue pendant la finalisation.",
+        };
+    }
+
+    let payload = null;
+    try {
+        payload = await response.json();
+    } catch (jsonErr) {
+        payload = null;
+    }
+
+    if (!response.ok) {
+        const errorCode = payload && payload.error ? payload.error : null;
+        const message =
+            (errorCode && SERVER_ERROR_MESSAGES[errorCode]) ||
+            "Impossible de terminer la génération. Réessaie.";
+        throw {
+            code: "finish_generation_failed",
+            detail: errorCode,
+            message,
+        };
+    }
+
+    if (!payload || !payload.ok || !payload.result) {
+        throw {
+            code: "finish_generation_failed",
+            detail: "unexpected_payload",
+            message: "Réponse inattendue du serveur Aria.",
+        };
+    }
+
+    return payload.result;
+}
+
+async function runAuthFlow(authUrl) {
+    stopOverlayCycling();
+    setOverlayMessage(AUTH_WAIT_MESSAGE);
+    btnEl.textContent = AUTH_CONFIRM_BUTTON_LABEL;
+
+    await waitForAuthCompletion(authUrl);
+
+    setOverlayMessage(FINALISING_MESSAGE);
+    btnEl.textContent = GENERATING_BUTTON_LABEL;
+
+    const agentResult = await finishGenerationViaServer();
+    updateResultCard(agentResult);
 }
 
 async function handleSubmit(e) {
@@ -59,8 +256,13 @@ async function handleSubmit(e) {
         return; // pas de prompt => rien
     }
 
-    lockButton();
-    showOverlay();
+    const wasConnected = isSpotifyConnected;
+
+    lockButton(wasConnected ? GENERATING_BUTTON_LABEL : CONNECT_BUTTON_LABEL);
+    showOverlay({
+        message: wasConnected ? LOADING_STEPS[0] : AUTH_PROMPT_MESSAGE,
+        cycling: wasConnected,
+    });
 
     try {
         const formData = new FormData();
@@ -71,13 +273,16 @@ async function handleSubmit(e) {
             body: formData,
         });
 
-        // si on doit lier Spotify -> on redirige
         if (res.status === 401) {
             const data = await res.json();
             if (data.need_auth && data.auth_url) {
-                window.location.href = data.auth_url;
+                await runAuthFlow(data.auth_url);
                 return;
             }
+            throw {
+                code: 'auth_error',
+                message: "Connexion à Spotify requise.",
+            };
         }
 
         if (!res.ok) {
@@ -85,33 +290,22 @@ async function handleSubmit(e) {
         }
 
         const data = await res.json();
-        // data = { summary, playlist_url, playlist_name }
-
-        // On met à jour l'UI :
-        playlistNameEl.textContent = data.playlist_name || "Ta playlist est prête";
-
-        if (data.playlist_url) {
-            playlistUrlBtnEl.href = data.playlist_url;
-            playlistUrlBtnEl.style.display = 'inline-block';
-        } else {
-            playlistUrlBtnEl.style.display = 'none';
-        }
-
-        if (data.summary) {
-            resultSummaryEl.textContent = data.summary;
-            resultSummaryEl.style.display = 'block';
-        } else {
-            resultSummaryEl.style.display = 'none';
-        }
-
-        // afficher la card résultat si pas déjà visible
-        if (!resultCardEl.classList.contains('show')) {
-            resultCardEl.classList.add('show');
-        }
-
+        updateResultCard(data);
     } catch (err) {
         console.error(err);
-        alert("Désolé, un truc a cassé pendant la génération.");
+        if (err && err.code === 'popup_closed') {
+            alert("Connexion Spotify annulée avant validation.");
+        } else if (err && err.code === 'auth_error') {
+            alert(err.message || "Impossible de terminer la connexion à Spotify. Réessaie.");
+        } else if (err && err.code === 'finish_generation_failed') {
+            alert(err.message || "Impossible de terminer la génération.");
+        } else if (err && err.code === 'network') {
+            alert("Connexion perdue pendant la finalisation. Vérifie ta connexion puis réessaie.");
+        } else if (err && err.code === 'navigation') {
+            // l'onglet a été redirigé vers Spotify, rien à faire ici
+        } else {
+            alert("Désolé, un truc a cassé pendant la génération.");
+        }
     } finally {
         hideOverlay();
         unlockButton();

@@ -138,7 +138,7 @@ def run_agent_for_user(
         {
             "role": "system",
             "content": (
-                "Tu es Aria, un assistant musical qui crée des playlists Spotify à partir d'une requête utilisateur.\n"
+                "Tu es Aria, une assistante musicale cute qui crée des playlists Spotify à partir d'une requête utilisateur.\n"
                 "1. Créer la playlist Spotify (appelle create_playlist UNE seule fois au début avec public=true).\n"
                 "2. Construire une sélection cohérente avec la requête utilisateur (~15 à ~20 titres max) et ajouter ces titres dans la playlist via add_tracks.\n"
                 "3. Finir en répondant dans la langue de la requête avec :\n"

@@ -25,7 +25,7 @@ Generate curated Spotify playlists from free-form prompts with an OpenAI-powered
    ```
 
 ## Deployment Notes
-- The application factory (`prompt_to_playlist.create_app`) is compatible with WSGI servers like Gunicorn or uWSGI.
+- The application factory (`aria.create_app`) is compatible with WSGI servers like Gunicorn or uWSGI.
 - Ensure HTTPS is enforced in production so Spotify redirects succeed.
 - Set `SECRET_KEY_FOR_SESSION` to a strong value and configure persistent session storage if you scale beyond a single instance.
 - Configure logging at the platform level; the app defaults to STDOUT.

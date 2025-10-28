@@ -7,18 +7,34 @@
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/after_auth.css') }}" />
 </head>
-<body>
+<body data-status="{{ status }}" data-message="{{ error_message | e }}">
 <div class="screen">
     <div class="card">
         <div class="sphere-wrapper">
             <div class="sphere"></div>
         </div>
 
-        <div class="loader-title">Aria recherche des pépites</div>
-        <div class="loader-step" id="loader-step">Création de ta playlist…</div>
+        <div class="loader-title" id="loader-title">
+            {% if status == "error" %}
+                Connexion Spotify interrompue
+            {% else %}
+                Aria recherche des pépites
+            {% endif %}
+        </div>
+        <div class="loader-step" id="loader-step">
+            {% if status == "error" %}
+                {{ error_message }}
+            {% else %}
+                Création de ta playlist…
+            {% endif %}
+        </div>
 
         <div class="progress-bar-shell">
             <div class="progress-bar-fill"></div>
+        </div>
+
+        <div class="manual-close-msg" id="manual-close-msg">
+            Aria a terminé ! Tu peux fermer cette fenêtre.
         </div>
 
         <div class="error-msg" id="error-msg">

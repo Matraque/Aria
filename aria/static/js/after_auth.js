@@ -1,4 +1,8 @@
-// Texte step-by-step qui défile pendant qu'on bosse
+const bodyEl = document.body;
+
+const STATUS_SUCCESS = "success";
+const STATUS_ERROR = "error";
+
 const LOADING_STEPS = [
     "Création de ta playlist…",
     "Sélection des titres…",
@@ -7,17 +11,42 @@ const LOADING_STEPS = [
 ];
 
 let loadingStepIndex = 0;
-const loaderStepEl = document.getElementById('loader-step');
-const errorEl = document.getElementById('error-msg');
 
-let stepTimer = setInterval(() => {
-    loadingStepIndex = (loadingStepIndex + 1) % LOADING_STEPS.length;
-    loaderStepEl.textContent = LOADING_STEPS[loadingStepIndex];
-}, 10000);
+const loaderTitleEl = document.getElementById("loader-title");
+const loaderStepEl = document.getElementById("loader-step");
+const errorEl = document.getElementById("error-msg");
+const progressBarEl = document.querySelector(".progress-bar-shell");
+const manualCloseEl = document.getElementById("manual-close-msg");
 
-// Dès que la page se charge, on termine la génération côté serveur
-// et quand c'est bon -> on renvoie l'utilisateur sur "/"
-async function finishGeneration() {
+const status = bodyEl.dataset.status || STATUS_SUCCESS;
+const statusMessage = bodyEl.dataset.message || "";
+
+let stepTimer = null;
+
+function startStepCycle() {
+    if (stepTimer) {
+        clearInterval(stepTimer);
+    }
+    stepTimer = setInterval(() => {
+        loadingStepIndex = (loadingStepIndex + 1) % LOADING_STEPS.length;
+        loaderStepEl.textContent = LOADING_STEPS[loadingStepIndex];
+    }, 10000);
+}
+
+function stopStepCycle() {
+    if (stepTimer) {
+        clearInterval(stepTimer);
+        stepTimer = null;
+    }
+}
+
+function notifyOpener(payload) {
+    if (window.opener && !window.opener.closed) {
+        window.opener.postMessage(payload, window.location.origin);
+    }
+}
+
+async function finishGenerationHere() {
     try {
         const res = await fetch("/finish_generation", {
             method: "POST",
@@ -29,19 +58,80 @@ async function finishGeneration() {
 
         const data = await res.json();
         if (data.ok) {
-            // Résultat stocké en session => la home pourra l'afficher
+            notifyOpener({
+                type: "spotify-auth-success",
+                result: data.result || null,
+            });
             window.location.href = "/";
             return;
-        } else {
-            throw new Error("server said not ok");
         }
+        throw new Error("server said not ok");
     } catch (err) {
         console.error(err);
-        clearInterval(stepTimer);
-        loaderStepEl.textContent = "Échec de la génération.";
+        stopStepCycle();
+        loaderTitleEl.textContent = "Échec de la génération.";
+        loaderStepEl.textContent = "Recharge Aria et réessaie.";
         errorEl.style.display = "block";
+        errorEl.textContent = "Impossible de terminer la génération automatiquement.";
+        notifyOpener({
+            type: "spotify-auth-error",
+            error: err && err.message ? err.message : "unknown_error",
+        });
     }
 }
 
-// lancer dès que le DOM est prêt
-window.addEventListener("DOMContentLoaded", finishGeneration);
+function handleSuccess() {
+    stopStepCycle();
+
+    if (window.opener && !window.opener.closed) {
+        loaderTitleEl.textContent = "Connexion réussie";
+        loaderStepEl.textContent = "Retourne sur l’onglet Aria, on termine la playlist pour toi.";
+        if (progressBarEl) {
+            progressBarEl.style.display = "none";
+        }
+        if (manualCloseEl) {
+            manualCloseEl.style.display = "block";
+        }
+
+        notifyOpener({ type: "spotify-auth-success" });
+
+        try {
+            window.opener.focus();
+        } catch (focusErr) {
+            console.error("focus opener failed", focusErr);
+        }
+
+        setTimeout(() => {
+            window.close();
+        }, 1200);
+    } else {
+        loaderTitleEl.textContent = "Aria finalise ta playlist…";
+        loaderStepEl.textContent = LOADING_STEPS[0];
+        startStepCycle();
+        finishGenerationHere();
+    }
+}
+
+function handleError() {
+    stopStepCycle();
+    loaderTitleEl.textContent = "Connexion Spotify interrompue";
+    loaderStepEl.textContent = statusMessage || "Réessaie la génération depuis Aria.";
+    if (progressBarEl) {
+        progressBarEl.style.display = "none";
+    }
+    errorEl.style.display = "block";
+    errorEl.textContent = statusMessage || "Erreur inconnue.";
+
+    notifyOpener({
+        type: "spotify-auth-error",
+        error: statusMessage || "unknown_error",
+    });
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+    if (status === STATUS_ERROR) {
+        handleError();
+    } else {
+        handleSuccess();
+    }
+});

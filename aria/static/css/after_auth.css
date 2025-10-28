@@ -199,3 +199,11 @@ body {
     text-align: center;
     display: none;
 }
+
+.manual-close-msg {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-dim);
+    text-align: center;
+    display: none;
+}

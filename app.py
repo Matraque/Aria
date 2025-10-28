@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from prompt_to_playlist import create_app
+from aria import create_app
 
 app = create_app()
 

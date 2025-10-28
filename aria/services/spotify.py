@@ -50,16 +50,29 @@ def exchange_code_for_token(
     session_store: MutableMapping[str, Any],
     settings: SpotifySettings,
 ) -> None:
+    auth = (settings.client_id, settings.client_secret)
     data = {
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": settings.redirect_uri,
-        "client_id": settings.client_id,
-        "client_secret": settings.client_secret,
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    resp = requests.post(TOKEN_URL, data=data, headers=headers, timeout=30)
-    resp.raise_for_status()
+    resp = requests.post(
+        TOKEN_URL,
+        data=data,
+        headers=headers,
+        auth=auth,
+        timeout=30,
+    )
+    try:
+        resp.raise_for_status()
+    except requests.HTTPError:
+        logger.error(
+            "Failed to exchange Spotify code for token (status=%s, body=%s)",
+            resp.status_code,
+            resp.text,
+        )
+        raise
 
     token_json = resp.json()
     access_token = token_json["access_token"]
@@ -75,18 +88,27 @@ def attempt_refresh_token(
     refresh_token = session_store.get("refresh_token")
     if not refresh_token:
         return False
+    auth = (settings.client_id, settings.client_secret)
 
     data = {
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
-        "client_id": settings.client_id,
-        "client_secret": settings.client_secret,
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    resp = requests.post(TOKEN_URL, data=data, headers=headers, timeout=30)
+    resp = requests.post(
+        TOKEN_URL,
+        data=data,
+        headers=headers,
+        auth=auth,
+        timeout=30,
+    )
 
     if resp.status_code != 200:
-        logger.warning("Failed to refresh Spotify token (status=%s)", resp.status_code)
+        logger.warning(
+            "Failed to refresh Spotify token (status=%s, body=%s)",
+            resp.status_code,
+            resp.text,
+        )
         return False
 
     token_json = resp.json()
@@ -144,4 +166,3 @@ def ensure_valid_spotify_client(
 
 def is_user_authenticated(session_store: MutableMapping[str, Any]) -> bool:
     return "access_token" in session_store
-

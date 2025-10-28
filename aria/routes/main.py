@@ -12,6 +12,7 @@ from flask import (
     request,
     session,
 )
+from requests import HTTPError
 
 from ..agent import run_agent_for_user
 from ..config import AppConfig
@@ -88,17 +89,53 @@ def generate_async() -> Response:
 
 @bp.get("/callback")
 def callback() -> str | Response:
+    error = request.args.get("error")
+    error_description = request.args.get("error_description", "")
+
+    if error:
+        message = error_description or "Connexion à Spotify interrompue. Réessaie depuis Aria."
+        return render_template(
+            "after_auth_loading.html",
+            status="error",
+            error_message=message,
+        ), 400
+
     code = request.args.get("code")
     if not code:
-        return "Missing 'code' from Spotify", 400
+        return render_template(
+            "after_auth_loading.html",
+            status="error",
+            error_message="Spotify n'a pas renvoyé de code d'autorisation.",
+        ), 400
 
-    spotify_service.exchange_code_for_token(
-        code=code,
-        session_store=session,
-        settings=_get_app_config().spotify,
+    try:
+        spotify_service.exchange_code_for_token(
+            code=code,
+            session_store=session,
+            settings=_get_app_config().spotify,
+        )
+    except HTTPError as exc:
+        err_message = "Authentification Spotify invalide ou expirée. Relance la génération."
+        response = getattr(exc, "response", None)
+        if response is not None:
+            try:
+                payload = response.json()
+                err_message = payload.get("error_description") or payload.get("error") or err_message
+            except ValueError:
+                if response.text:
+                    err_message = response.text
+        current_app.logger.error("Spotify auth callback failed: %s", err_message)
+        return render_template(
+            "after_auth_loading.html",
+            status="error",
+            error_message=err_message,
+        ), 400
+
+    return render_template(
+        "after_auth_loading.html",
+        status="success",
+        error_message="",
     )
-
-    return render_template("after_auth_loading.html")
 
 
 @bp.post("/finish_generation")
@@ -121,7 +158,7 @@ def finish_generation() -> Response:
     session["pending_prompt"] = ""
     session["last_result"] = agent_result
 
-    return jsonify({"ok": True}), 200
+    return jsonify({"ok": True, "result": agent_result}), 200
 
 
 def _ensure_spotify_client():
@@ -142,4 +179,3 @@ def _get_openai_client():
 
 def _get_app_config() -> AppConfig:
     return current_app.config["APP_CONFIG"]
-
