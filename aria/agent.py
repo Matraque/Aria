@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import importlib.resources as resources
+import unicodedata
 from typing import Any, Dict, List
 
 from openai import OpenAI
@@ -18,6 +19,30 @@ def _load_tools_schema() -> List[Dict[str, Any]]:
 
 
 tools_schema = _load_tools_schema()
+
+
+def _strip_control_chars(value: str) -> str:
+    """
+    Remove ASCII control characters that can break downstream APIs (e.g. Spotify rejecting NUL bytes).
+    NFC normalisation avoids weird accent encodings when coming from the model.
+    """
+    if not value:
+        return value
+    normalised = unicodedata.normalize("NFC", value)
+    cleaned = "".join(ch for ch in normalised if ch >= " " or ch in "\n\r\t")
+    if cleaned != value:
+        logger.debug("Sanitised string from %r to %r", value, cleaned)
+    return cleaned
+
+
+def _sanitise_arguments(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {key: _sanitise_arguments(val) for key, val in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitise_arguments(item) for item in obj]
+    if isinstance(obj, str):
+        return _strip_control_chars(obj)
+    return obj
 
 
 def build_tool_impls(sp: spotipy.Spotify) -> Dict[str, Any]:
@@ -178,6 +203,7 @@ def run_agent_for_user(
 
             try:
                 args = json.loads(raw_args) if raw_args else {}
+                args = _sanitise_arguments(args)
             except json.JSONDecodeError:
                 logger.exception("Invalid JSON payload received from model")
                 args = {}
@@ -186,9 +212,9 @@ def run_agent_for_user(
                 logger.error("Unknown tool requested by model: %s", name)
                 result = {"error": f"unknown function {name}"}
             else:
-                try:
-                    py_fn = tool_impls[name]
-                    result = py_fn(**args)
+        try:
+            py_fn = tool_impls[name]
+            result = py_fn(**args)
                     if name == "create_playlist" and isinstance(result, dict):
                         last_playlist_info = result
                         playlist_url = result.get("url")

@@ -64,8 +64,12 @@ def _build_config() -> AppConfig:
 def _configure_logging(app: Flask) -> None:
     """Ensure the app logger has a sane default when running in production shells."""
     if app.logger.handlers:
+        logging.basicConfig(level=logging.INFO)
+        logging.getLogger("aria").setLevel(logging.INFO)
         return
     handler = logging.StreamHandler()
     handler.setLevel(logging.INFO)
     app.logger.setLevel(logging.INFO)
     app.logger.addHandler(handler)
+    logging.basicConfig(level=logging.INFO)
+    logging.getLogger("aria").setLevel(logging.INFO)
