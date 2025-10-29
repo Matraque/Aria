@@ -15,6 +15,8 @@ const AUTH_PROMPT_MESSAGE = "Connexion à Spotify en cours…";
 const AUTH_WAIT_MESSAGE = "Autorise Aria dans la fenêtre Spotify pour continuer…";
 const AUTH_CONFIRM_BUTTON_LABEL = "Valide la connexion dans la fenêtre Spotify…";
 const FINALISING_MESSAGE = "Aria recherche des pépites…";
+const AUTH_PENDING_STORAGE_KEY = "ariaSpotifyAuthPending";
+const AUTH_RESULT_STORAGE_KEY = "ariaSpotifyAuthResult";
 
 const formEl = document.getElementById('generate-form');
 const btnEl = document.getElementById('generate-btn');
@@ -56,6 +58,62 @@ const initialPendingPrompt = (() => {
 })();
 
 let autoResumeTriggered = false;
+
+function generateAuthSessionId() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+        return window.crypto.randomUUID();
+    }
+    return `auth-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function markAuthPending(sessionId) {
+    try {
+        localStorage.setItem(
+            AUTH_PENDING_STORAGE_KEY,
+            JSON.stringify({ id: sessionId, ts: Date.now() }),
+        );
+    } catch (err) {
+        console.warn("Impossible enregistrement état auth Spotify", err);
+    }
+}
+
+function clearAuthPending(sessionId) {
+    try {
+        if (!sessionId) {
+            localStorage.removeItem(AUTH_PENDING_STORAGE_KEY);
+            return;
+        }
+        const raw = localStorage.getItem(AUTH_PENDING_STORAGE_KEY);
+        if (!raw) {
+            return;
+        }
+        const parsed = JSON.parse(raw);
+        if (!parsed || parsed.id === sessionId) {
+            localStorage.removeItem(AUTH_PENDING_STORAGE_KEY);
+        }
+    } catch (err) {
+        console.warn("Impossible nettoyage état auth Spotify", err);
+    }
+}
+
+function clearAuthResult(sessionId) {
+    try {
+        if (!sessionId) {
+            localStorage.removeItem(AUTH_RESULT_STORAGE_KEY);
+            return;
+        }
+        const raw = localStorage.getItem(AUTH_RESULT_STORAGE_KEY);
+        if (!raw) {
+            return;
+        }
+        const parsed = JSON.parse(raw);
+        if (!parsed || parsed.id === sessionId) {
+            localStorage.removeItem(AUTH_RESULT_STORAGE_KEY);
+        }
+    } catch (err) {
+        console.warn("Impossible nettoyage résultat auth Spotify", err);
+    }
+}
 
 function updateResultCard(agentResult) {
     if (!agentResult) {
@@ -140,8 +198,14 @@ function unlockButton() {
 }
 
 function waitForAuthCompletion(authUrl) {
+    const authSessionId = generateAuthSessionId();
+    clearAuthResult();
+    markAuthPending(authSessionId);
+
     const authTab = window.open(authUrl, "_blank");
     if (!authTab) {
+        clearAuthPending(authSessionId);
+        clearAuthResult(authSessionId);
         window.location.href = authUrl;
         return Promise.reject({
             code: "navigation",
@@ -152,23 +216,26 @@ function waitForAuthCompletion(authUrl) {
     return new Promise((resolve, reject) => {
         const origin = window.location.origin;
         let pollId = null;
+        let settled = false;
 
-        const cleanup = () => {
+        const cleanup = (shouldClose = false) => {
             window.removeEventListener("message", onMessage);
+            window.removeEventListener("storage", onStorageMessage);
             if (pollId !== null) {
                 clearInterval(pollId);
                 pollId = null;
             }
-        };
-
-        const closeTab = () => {
-            try {
-                if (!authTab.closed) {
-                    authTab.close();
+            if (shouldClose) {
+                try {
+                    if (!authTab.closed) {
+                        authTab.close();
+                    }
+                } catch (closeErr) {
+                    console.error("Impossible de fermer l'onglet Spotify", closeErr);
                 }
-            } catch (closeErr) {
-                console.error("Impossible de fermer l'onglet Spotify", closeErr);
             }
+            clearAuthPending(authSessionId);
+            clearAuthResult(authSessionId);
         };
 
         const onMessage = (event) => {
@@ -178,13 +245,52 @@ function waitForAuthCompletion(authUrl) {
             const payload = event.data || {};
 
             if (payload.type === "spotify-auth-success") {
-                cleanup();
-                closeTab();
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                cleanup(true);
                 window.focus();
                 resolve();
             } else if (payload.type === "spotify-auth-error") {
-                cleanup();
-                closeTab();
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                cleanup(true);
+                reject({
+                    code: "auth_error",
+                    message: payload.error || "Erreur d'authentification Spotify.",
+                });
+            }
+        };
+
+        const onStorageMessage = (event) => {
+            if (event.key !== AUTH_RESULT_STORAGE_KEY || !event.newValue) {
+                return;
+            }
+            let payload;
+            try {
+                payload = JSON.parse(event.newValue);
+            } catch (storageErr) {
+                console.warn("Impossible de lire le résultat auth Spotify", storageErr);
+                return;
+            }
+            if (payload && payload.id && payload.id !== authSessionId) {
+                return;
+            }
+            if (!payload || settled) {
+                return;
+            }
+
+            if (payload.status === "success") {
+                settled = true;
+                cleanup(true);
+                window.focus();
+                resolve();
+            } else if (payload.status === "error") {
+                settled = true;
+                cleanup(true);
                 reject({
                     code: "auth_error",
                     message: payload.error || "Erreur d'authentification Spotify.",
@@ -193,9 +299,14 @@ function waitForAuthCompletion(authUrl) {
         };
 
         window.addEventListener("message", onMessage);
+        window.addEventListener("storage", onStorageMessage);
 
         pollId = window.setInterval(() => {
+            if (settled) {
+                return;
+            }
             if (authTab.closed) {
+                settled = true;
                 cleanup();
                 reject({
                     code: "popup_closed",

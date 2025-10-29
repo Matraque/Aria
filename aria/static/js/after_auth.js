@@ -23,6 +23,41 @@ const statusMessage = bodyEl.dataset.message || "";
 
 let stepTimer = null;
 
+const AUTH_PENDING_STORAGE_KEY = "ariaSpotifyAuthPending";
+const AUTH_RESULT_STORAGE_KEY = "ariaSpotifyAuthResult";
+
+function clearPendingMarker() {
+    try {
+        localStorage.removeItem(AUTH_PENDING_STORAGE_KEY);
+    } catch (err) {
+        console.error("Impossible de nettoyer le marqueur auth Spotify", err);
+    }
+}
+
+function broadcastAuthResult(statusValue, extraPayload = {}) {
+    try {
+        let pendingId = null;
+        const raw = localStorage.getItem(AUTH_PENDING_STORAGE_KEY);
+        if (raw) {
+            try {
+                const parsed = JSON.parse(raw);
+                pendingId = parsed && parsed.id ? parsed.id : null;
+            } catch (parseErr) {
+                console.error("Impossible de parser le marqueur auth Spotify", parseErr);
+            }
+        }
+        const payload = {
+            id: pendingId,
+            status: statusValue,
+            timestamp: Date.now(),
+            ...extraPayload,
+        };
+        localStorage.setItem(AUTH_RESULT_STORAGE_KEY, JSON.stringify(payload));
+    } catch (err) {
+        console.error("Impossible de diffuser le statut auth Spotify", err);
+    }
+}
+
 function startStepCycle() {
     if (stepTimer) {
         clearInterval(stepTimer);
@@ -48,6 +83,9 @@ function notifyOpener(payload) {
 
 function handleSuccess() {
     stopStepCycle();
+
+    broadcastAuthResult("success");
+    clearPendingMarker();
 
     if (window.opener && !window.opener.closed) {
         loaderTitleEl.textContent = "Connexion réussie";
@@ -95,6 +133,11 @@ function handleError() {
     }
     errorEl.style.display = "block";
     errorEl.textContent = statusMessage || "Erreur inconnue.";
+
+    broadcastAuthResult("error", {
+        error: statusMessage || "unknown_error",
+    });
+    clearPendingMarker();
 
     notifyOpener({
         type: "spotify-auth-error",
