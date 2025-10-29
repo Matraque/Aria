@@ -1,10 +1,10 @@
 # Prompt to Playlist
 
-Generate curated Spotify playlists from free-form prompts with an OpenAI-powered agent and a production-ready Flask backend.
+Generate Spotify playlists from free-form prompts.
 
 ## Features
 - Spotify OAuth flow with automatic token refresh.
-- Playlist generation powered by the OpenAI Responses API with tool calling.
+- Playlist generation powered by OpenAI with function calling.
 - Modern single-page UI with dynamic loading overlay.
 - Modular Flask application factory suitable for WSGI/ASGI deployment.
 
@@ -23,10 +23,3 @@ Generate curated Spotify playlists from free-form prompts with an OpenAI-powered
    ```bash
    flask --app app run --host 127.0.0.1 --port 3000 --debug
    ```
-
-## Deployment Notes
-- The application factory (`aria.create_app`) is compatible with WSGI servers like Gunicorn or uWSGI.
-- Ensure HTTPS is enforced in production so Spotify redirects succeed.
-- Set `SECRET_KEY_FOR_SESSION` to a strong value and configure persistent session storage if you scale beyond a single instance.
-- Configure logging at the platform level; the app defaults to STDOUT.
-

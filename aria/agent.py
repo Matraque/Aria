@@ -21,6 +21,15 @@ def _load_tools_schema() -> List[Dict[str, Any]]:
 tools_schema = _load_tools_schema()
 
 
+def _truncate_for_log(value: Any, max_chars: int = 400) -> str:
+    if value is None:
+        return ""
+    text = str(value)
+    if len(text) <= max_chars:
+        return text
+    return f"{text[: max_chars - 13]}...(truncated)"
+
+
 def _strip_control_chars(value: str) -> str:
     """
     Remove ASCII control characters that can break downstream APIs (e.g. Spotify rejecting NUL bytes).
@@ -168,6 +177,7 @@ def run_agent_for_user(
         )
 
         new_items = list(response.output)
+        logger.info("Model produced %s new item(s) in step %s", len(new_items), step_index)
         input_list += new_items
 
         function_calls = []
@@ -176,16 +186,32 @@ def run_agent_for_user(
         for item in new_items:
             if item.type == "function_call":
                 function_calls.append(item)
+                logger.info(
+                    "Model requested tool '%s' (call_id=%s) with args: %s",
+                    getattr(item, "name", "?"),
+                    getattr(item, "call_id", "?"),
+                    _truncate_for_log(getattr(item, "arguments", "")),
+                )
             elif item.type == "message" and getattr(item, "content", None):
                 for block in item.content:
                     if block.type == "output_text":
-                        final_text_chunks.append(block.text)
+                        text_chunk = block.text
+                        final_text_chunks.append(text_chunk)
+                        stripped = text_chunk.strip()
+                        if stripped:
+                            logger.info("Model draft text: %s", _truncate_for_log(stripped))
 
         if final_text_chunks:
             logger.debug("Model candidate response: %s", " ".join(chunk.strip() for chunk in final_text_chunks))
 
         if not function_calls:
             summary_text = "\n".join(final_text_chunks).strip()
+            if summary_text:
+                logger.info("Model final summary: %s", _truncate_for_log(summary_text))
+            else:
+                logger.info("Model finished without generating summary text.")
+            if last_playlist_info:
+                logger.info("Latest playlist details: %s", _truncate_for_log(json.dumps(last_playlist_info)))
             return {
                 "summary": summary_text if summary_text else "(aucun texte du modèle)",
                 "playlist_url": (last_playlist_info.get("url") if last_playlist_info else ""),
@@ -197,7 +223,7 @@ def run_agent_for_user(
             raw_args = fc.arguments
             call_id = fc.call_id
 
-            logger.debug("Executing tool call '%s' with payload: %s", name, raw_args)
+            logger.info("Executing tool call '%s' with payload: %s", name, _truncate_for_log(raw_args))
 
             try:
                 args = json.loads(raw_args) if raw_args else {}
@@ -228,6 +254,12 @@ def run_agent_for_user(
                 except Exception as exc:  # pragma: no cover - defensive
                     logger.exception("Unexpected error while executing tool '%s'", name)
                     result = {"error": str(exc)}
+
+            try:
+                result_for_log = json.dumps(result)
+            except TypeError:
+                result_for_log = str(result)
+            logger.info("Tool '%s' output: %s", name, _truncate_for_log(result_for_log))
 
             input_list.append({
                 "type": "function_call_output",
