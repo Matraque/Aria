@@ -1,20 +1,20 @@
 const LOADING_STEPS = [
-    "Création de ta playlist…",
-    "Sélection des titres…",
-    "Ajout des morceaux dans Spotify…",
-    "Presque prêt…"
+    "Building your playlist...",
+    "Picking the tracks...",
+    "Adding songs to Spotify...",
+    "Almost ready..."
 ];
 
 let loadingStepIndex = 0;
 let loadingInterval = null;
 
-const DEFAULT_BUTTON_LABEL = "Générer ma playlist";
-const CONNECT_BUTTON_LABEL = "Connexion Spotify en cours…";
-const GENERATING_BUTTON_LABEL = "Génération en cours…";
-const AUTH_PROMPT_MESSAGE = "Connexion à Spotify en cours…";
-const AUTH_WAIT_MESSAGE = "Autorise Aria dans la fenêtre Spotify pour continuer…";
-const AUTH_CONFIRM_BUTTON_LABEL = "Valide la connexion dans la fenêtre Spotify…";
-const FINALISING_MESSAGE = "Aria recherche des pépites…";
+const DEFAULT_BUTTON_LABEL = "Generate my playlist";
+const CONNECT_BUTTON_LABEL = "Connecting to Spotify...";
+const GENERATING_BUTTON_LABEL = "Generating...";
+const AUTH_PROMPT_MESSAGE = "Connecting to Spotify...";
+const AUTH_WAIT_MESSAGE = "Authorize Aria in the Spotify window to continue...";
+const AUTH_CONFIRM_BUTTON_LABEL = "Approve the connection in the Spotify window...";
+const FINALISING_MESSAGE = "Aria is digging for gems...";
 const AUTH_PENDING_STORAGE_KEY = "ariaSpotifyAuthPending";
 const AUTH_RESULT_STORAGE_KEY = "ariaSpotifyAuthResult";
 
@@ -73,7 +73,7 @@ function markAuthPending(sessionId) {
             JSON.stringify({ id: sessionId, ts: Date.now() }),
         );
     } catch (err) {
-        console.warn("Impossible enregistrement état auth Spotify", err);
+        console.warn("Failed to save Spotify auth state", err);
     }
 }
 
@@ -92,7 +92,7 @@ function clearAuthPending(sessionId) {
             localStorage.removeItem(AUTH_PENDING_STORAGE_KEY);
         }
     } catch (err) {
-        console.warn("Impossible nettoyage état auth Spotify", err);
+        console.warn("Failed to clear Spotify auth state", err);
     }
 }
 
@@ -111,7 +111,7 @@ function clearAuthResult(sessionId) {
             localStorage.removeItem(AUTH_RESULT_STORAGE_KEY);
         }
     } catch (err) {
-        console.warn("Impossible nettoyage résultat auth Spotify", err);
+        console.warn("Failed to clear Spotify auth result", err);
     }
 }
 
@@ -125,7 +125,7 @@ function updateResultCard(agentResult) {
     isSpotifyConnected = true;
     window.ARIA_SPOTIFY_CONNECTED = true;
 
-    playlistNameEl.textContent = agentResult.playlist_name || "Ta playlist est prête";
+    playlistNameEl.textContent = agentResult.playlist_name || "Your playlist is ready";
 
     if (agentResult.playlist_url) {
         playlistUrlBtnEl.href = agentResult.playlist_url;
@@ -209,7 +209,7 @@ function waitForAuthCompletion(authUrl) {
         window.location.href = authUrl;
         return Promise.reject({
             code: "navigation",
-            message: "Redirection vers Spotify.",
+            message: "Redirecting to Spotify.",
         });
     }
 
@@ -231,7 +231,7 @@ function waitForAuthCompletion(authUrl) {
                         authTab.close();
                     }
                 } catch (closeErr) {
-                    console.error("Impossible de fermer l'onglet Spotify", closeErr);
+                    console.error("Failed to close the Spotify tab", closeErr);
                 }
             }
             clearAuthPending(authSessionId);
@@ -260,7 +260,7 @@ function waitForAuthCompletion(authUrl) {
                 cleanup(true);
                 reject({
                     code: "auth_error",
-                    message: payload.error || "Erreur d'authentification Spotify.",
+                    message: payload.error || "Spotify authentication error.",
                 });
             }
         };
@@ -273,7 +273,7 @@ function waitForAuthCompletion(authUrl) {
             try {
                 payload = JSON.parse(event.newValue);
             } catch (storageErr) {
-                console.warn("Impossible de lire le résultat auth Spotify", storageErr);
+                console.warn("Failed to read the Spotify auth result", storageErr);
                 return;
             }
             if (payload && payload.id && payload.id !== authSessionId) {
@@ -293,7 +293,7 @@ function waitForAuthCompletion(authUrl) {
                 cleanup(true);
                 reject({
                     code: "auth_error",
-                    message: payload.error || "Erreur d'authentification Spotify.",
+                    message: payload.error || "Spotify authentication error.",
                 });
             }
         };
@@ -310,7 +310,7 @@ function waitForAuthCompletion(authUrl) {
                 cleanup();
                 reject({
                     code: "popup_closed",
-                    message: "Fenêtre d'authentification fermée avant la validation.",
+                    message: "Authentication window closed before approval.",
                 });
             }
         }, 600);
@@ -332,7 +332,7 @@ async function makeGenerateRequest(promptVal) {
     } catch (networkErr) {
         throw {
             code: 'network',
-            message: "Connexion perdue pendant la génération.",
+            message: "Connection lost during generation.",
         };
     }
 }
@@ -360,6 +360,85 @@ async function fetchLatestResult() {
     }
 }
 
+async function finishPendingGeneration() {
+    lockButton(GENERATING_BUTTON_LABEL);
+    showOverlay({ message: FINALISING_MESSAGE, cycling: true });
+
+    try {
+        const res = await fetch('/finish_generation', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+            },
+        });
+
+        if (res.status === 400) {
+            window.ARIA_PENDING_PROMPT = "";
+            const promptEl = document.getElementById('prompt');
+            if (promptEl) {
+                promptEl.value = "";
+            }
+            return null;
+        }
+
+        if (res.status === 401) {
+            throw {
+                code: 'auth_error',
+                message: "Spotify connection required.",
+            };
+        }
+
+        if (!res.ok) {
+            throw new Error("Server error");
+        }
+
+        let data = null;
+        try {
+            data = await res.json();
+        } catch (jsonErr) {
+            console.error("finish_generation response parse failed", jsonErr);
+        }
+        if (!data || data.ok !== true) {
+            throw new Error("Invalid server response");
+        }
+
+        const agentResult = data.result || null;
+        if (agentResult) {
+            updateResultCard(agentResult);
+        }
+
+        window.ARIA_PENDING_PROMPT = "";
+        const promptInputEl = document.getElementById('prompt');
+        if (promptInputEl) {
+            promptInputEl.value = "";
+        }
+
+        return agentResult;
+    } finally {
+        hideOverlay();
+        unlockButton();
+    }
+}
+
+async function resumePendingGenerationIfNeeded() {
+    if (autoResumeTriggered || !initialPendingPrompt || !isSpotifyConnected || initialResult) {
+        return;
+    }
+
+    autoResumeTriggered = true;
+
+    try {
+        await finishPendingGeneration();
+    } catch (err) {
+        console.error("Failed to resume pending generation", err);
+        if (err && err.code === 'auth_error') {
+            alert(err.message || "Spotify connection expired. Please generate again.");
+        } else {
+            alert("We connected to Spotify, but finishing your playlist failed. Please click Generate again.");
+        }
+    }
+}
+
 async function runAuthFlow(authUrl, promptVal) {
     stopOverlayCycling();
     setOverlayMessage(AUTH_WAIT_MESSAGE);
@@ -375,12 +454,12 @@ async function runAuthFlow(authUrl, promptVal) {
     if (res.status === 401) {
         throw {
             code: 'auth_error',
-            message: "Connexion à Spotify requise.",
+            message: "Spotify connection required.",
         };
     }
 
     if (!res.ok) {
-        throw new Error("Erreur serveur");
+        throw new Error("Server error");
     }
 
     return await res.json();
@@ -392,7 +471,7 @@ async function handleSubmit(e) {
     const promptInputEl = document.getElementById('prompt');
     const promptVal = promptInputEl ? promptInputEl.value.trim() : "";
     if (!promptVal) {
-        return; // pas de prompt => rien
+        return; // nothing to do without a prompt
     }
 
     autoResumeTriggered = true;
@@ -423,12 +502,12 @@ async function handleSubmit(e) {
             }
             throw {
                 code: 'auth_error',
-                message: "Connexion à Spotify requise.",
+                message: "Spotify connection required.",
             };
         }
 
         if (!res.ok) {
-            throw new Error("Erreur serveur");
+            throw new Error("Server error");
         }
 
         const data = await res.json();
@@ -436,20 +515,20 @@ async function handleSubmit(e) {
     } catch (err) {
         console.error(err);
         if (err && err.code === 'popup_closed') {
-            alert("Connexion Spotify annulée avant validation.");
+            alert("Spotify sign-in was cancelled before approval.");
         } else if (err && err.code === 'auth_error') {
-            alert(err.message || "Impossible de terminer la connexion à Spotify. Réessaie.");
+            alert(err.message || "Could not finish connecting to Spotify. Try again.");
         } else if (err && err.code === 'network') {
-            alert(err.message || "Connexion perdue pendant la génération. Vérifie ta connexion puis réessaie.");
+            alert(err.message || "Connection lost during generation. Check your connection and try again.");
         } else if (err && err.code === 'navigation') {
-            // l'onglet a été redirigé vers Spotify, rien à faire ici
+            // the tab was redirected to Spotify, nothing else to do here
         } else {
             const fallbackResult = await fetchLatestResult();
             if (fallbackResult) {
                 updateResultCard(fallbackResult);
-                alert("Ta playlist est prête mais la réponse a mis trop de temps. Je l’ai récupérée pour toi !");
+                alert("Your playlist is ready but the response took too long. I grabbed it for you!");
             } else {
-                alert("Désolé, un truc a cassé pendant la génération.");
+                alert("Sorry, something broke during generation.");
             }
         }
     } finally {
@@ -461,12 +540,7 @@ async function handleSubmit(e) {
 formEl.addEventListener('submit', handleSubmit);
 
 window.addEventListener("DOMContentLoaded", () => {
-    if (!autoResumeTriggered && initialPendingPrompt && isSpotifyConnected && !initialResult) {
-        autoResumeTriggered = true;
-        setTimeout(() => {
-            formEl.requestSubmit();
-        }, 200);
-    }
+    resumePendingGenerationIfNeeded();
 });
 
 if (initialResult) {
@@ -474,31 +548,30 @@ if (initialResult) {
 }
 
 // -----------------------------------------------------------------
-// ORBE INTERACTIVE (boule qui flotte)
+// INTERACTIVE ORB (floating sphere)
 //
-// - le wrapper (.sphere-wrapper) se déplace vers le curseur + scale
-// - la boule reste parfaitement ronde (pas de rotateX/rotateY pizza)
-// - on déplace SEULEMENT un peu la lumière pour simuler le "roll"
-//   mais pas assez pour que ça fasse un oeil
+// - the wrapper (.sphere-wrapper) follows the cursor and scales slightly
+// - the sphere always stays perfectly round (no rotateX/rotateY weirdness)
+// - we only move the light a little to mimic the roll without making an eye effect
 // -----------------------------------------------------------------
 
 const sphereWrappers = Array.from(document.querySelectorAll('.sphere-wrapper'));
 
-// on construit un petit state par boule
+// build a tiny state object per sphere
 const spheres = sphereWrappers.map(wrapper => {
     const inner = wrapper.querySelector('.sphere');
     return {
         wrapper,
         inner,
-        // état affiché:
+        // current display state:
         dx: 0,
         dy: 0,
         scale: 1,
-        // cible:
+        // target values:
         targetDx: 0,
         targetDy: 0,
         targetScale: 1,
-        // géométrie:
+        // geometry:
         cx: 0,
         cy: 0,
         w: 0,
@@ -527,7 +600,7 @@ window.addEventListener('pointermove', (evt) => {
         const dxPx = clientX - s.cx;
         const dyPx = clientY - s.cy;
 
-        // normalisation sur une plage contrôlée
+        // normalize movement within a controlled range
         const RANGE = 120;
         let ndx = dxPx / RANGE;
         let ndy = dyPx / RANGE;
@@ -537,10 +610,10 @@ window.addEventListener('pointermove', (evt) => {
         s.targetDx = ndx;
         s.targetDy = ndy;
 
-        // distance curseur -> sphère
+        // cursor distance to the sphere
         const dist = Math.hypot(dxPx, dyPx);
 
-        // effet magnétique (elle gonfle si tu t'approches)
+        // magnetic effect (it grows when you get close)
         if (dist < 80) {
             s.targetScale = 1.12;
         } else if (dist < 140) {
@@ -557,22 +630,22 @@ function lerp(current, target, smooth) {
 
 function animateSpheres() {
     spheres.forEach(s => {
-        // easing doux, vivant
+        // gentle, lively easing for the motion
         s.dx = lerp(s.dx, s.targetDx, 0.08);
         s.dy = lerp(s.dy, s.targetDy, 0.08);
         s.scale = lerp(s.scale, s.targetScale, 0.08);
 
-        // translation physique de la boule vers le curseur
+        // physical translation of the sphere toward the cursor
         const MOVE_PX = 12;
         const tx = s.dx * MOVE_PX;
         const ty = s.dy * MOVE_PX;
 
-        // applique translate+scale au WRAPPER (garde la boule frontale)
+        // apply translate+scale on the wrapper (keeps the sphere facing forward)
         s.wrapper.style.transform =
             `translate3d(${tx}px, ${ty}px, 0) scale(${s.scale})`;
 
-        // on simule un léger "roll" de la sphère en décalant PEU la lumière
-        const LIGHT_SHIFT_PCT = 5; // très léger -> pas l'effet oeil
+        // simulate a subtle roll by nudging the light just a little
+        const LIGHT_SHIFT_PCT = 5; // very subtle -> avoids the eyeball effect
         const lx = 30 + s.dx * LIGHT_SHIFT_PCT;
         const ly = 25 + s.dy * LIGHT_SHIFT_PCT;
 

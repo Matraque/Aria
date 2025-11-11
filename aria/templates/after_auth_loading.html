@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0" />
-    <title>Aria — génération en cours</title>
+    <title>Aria — playlist in progress</title>
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/after_auth.css') }}" />
 </head>
@@ -16,16 +16,16 @@
 
         <div class="loader-title" id="loader-title">
             {% if status == "error" %}
-                Connexion Spotify interrompue
+                Spotify sign-in interrupted
             {% else %}
-                Aria recherche des pépites
+                Aria is digging for gems
             {% endif %}
         </div>
         <div class="loader-step" id="loader-step">
             {% if status == "error" %}
                 {{ error_message }}
             {% else %}
-                Création de ta playlist…
+                Building your playlist...
             {% endif %}
         </div>
 
@@ -34,12 +34,12 @@
         </div>
 
         <div class="manual-close-msg" id="manual-close-msg">
-            Aria a terminé ! Tu peux fermer cette fenêtre.
+            Aria is done! You can close this window.
         </div>
 
         <div class="error-msg" id="error-msg">
-            Oups. Impossible de terminer la génération. <br/>
-            Recharge la page d’accueil.
+            Oops. Could not complete the generation. <br/>
+            Reload the home page.
         </div>
     </div>
 </div>

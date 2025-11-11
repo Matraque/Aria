@@ -38,7 +38,10 @@ def create_app() -> Flask:
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
     )
-    if os.getenv("FORCE_HTTPS", "1") == "1":
+    force_https_env = os.getenv("FORCE_HTTPS")
+    if force_https_env is None:
+        force_https_env = "1" if config.spotify.base_redirect_uri.lower().startswith("https://") else "0"
+    if force_https_env == "1":
         app.config["SESSION_COOKIE_SECURE"] = True
         app.config["PREFERRED_URL_SCHEME"] = "https"
 

@@ -213,7 +213,7 @@ def run_agent_for_user(
             if last_playlist_info:
                 logger.info("Latest playlist details: %s", _truncate_for_log(json.dumps(last_playlist_info)))
             return {
-                "summary": summary_text if summary_text else "(aucun texte du modèle)",
+                "summary": summary_text if summary_text else "(no model text)",
                 "playlist_url": (last_playlist_info.get("url") if last_playlist_info else ""),
                 "playlist_name": (last_playlist_info.get("name") if last_playlist_info else ""),
             }

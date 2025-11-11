@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta
@@ -31,7 +31,7 @@
         <!-- MAIN INPUT CARD -->
         <section class="main-card">
             <div class="headline">
-                Décris ton mood
+                Describe your vibe
             </div>
 
             <form class="generate-form" id="generate-form" action="/generate_async" method="post">
@@ -41,17 +41,17 @@
                         name="prompt"
                         id="prompt"
                         rows="4"
-                        placeholder="Une horde de sangliers tapant du sabot dans la forêt sur de la hard techno à 180 BPM."
+                        placeholder="A herd of wild boars pounding their hooves in the forest to 180 BPM hard techno."
                     >{{ pending_prompt }}</textarea>
                 </div>
 
                 <button class="generate-btn" type="submit" id="generate-btn">
-                    Générer ma playlist
+                    Generate my playlist
                 </button>
             </form>
 
             <div class="tiny-legal">
-                Aria créera la playlist dans ton Spotify.
+                Aria will create the playlist in your Spotify.
             </div>
         </section>
 
@@ -59,7 +59,7 @@
         <section class="result-card" id="result-card">
             <div class="playlist-headrow">
                 <div class="playlist-name" id="playlist-name">
-                    <!-- rempli dynamiquement -->
+                    <!-- filled dynamically -->
                 </div>
 
                 <a
@@ -70,18 +70,18 @@
                     rel="noopener"
                     style="display:none;"
                 >
-                    Ouvrir dans Spotify
+                    Open in Spotify
                 </a>
             </div>
 
             <div class="result-summary-block" id="result-summary" style="display:none;">
-                <!-- texte ambiance -->
+                <!-- mood text -->
             </div>
         </section>
 
         <footer class="page-footer">
             <span class="brand">Aria</span>
-            <div>Génère ta bande-son.</div>
+            <div>Create your soundtrack.</div>
         </footer>
 
     </div>
@@ -94,8 +94,8 @@
             <div class="sphere loader-sphere"></div>
         </div>
 
-        <div class="loader-title">Aria recherche des pépites</div>
-        <div class="loader-step" id="loader-step">Création de ta playlist…</div>
+        <div class="loader-title">Aria is digging for gems</div>
+        <div class="loader-step" id="loader-step">Building your playlist...</div>
         <div class="progress-bar-shell">
             <div class="progress-bar-fill"></div>
         </div>

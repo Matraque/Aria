@@ -9,11 +9,11 @@
     --radius-md: 12px;
     --border-card: rgba(255,255,255,0.07);
 
-    /* position "lumière principale" par défaut -> haut / gauche */
+    /* default main light position -> top / left */
     --light-base-x: 30%;
     --light-base-y: 25%;
 
-    /* valeurs animées qu'on va très légèrement bouger */
+    /* animated values we nudge very slightly */
     --light-x: 30%;
     --light-y: 25%;
 }
@@ -52,13 +52,13 @@ body {
 header.header-row {
     display: flex;
     flex-direction: row;
-    align-items: center; /* <= ALIGNEMENT vertical avatar / texte */
+    align-items: center; /* <= vertical alignment avatar / text */
     gap: 12px;
 }
 
-/* ---- SPHÈRE ARIA -------------------------------------------------- */
+/* ---- ARIA SPHERE -------------------------------------------------- */
 
-/* le wrapper se déplace / grossit mais reste toujours un cercle vu de face */
+/* wrapper moves / scales but always remains a circle facing forward */
 .sphere-wrapper {
     position: relative;
     width: 44px;
@@ -71,23 +71,23 @@ header.header-row {
     animation: pulseGlow 4s ease-in-out infinite;
 }
 
-/* même chose mais un peu plus gros pour le loader */
+/* same idea but slightly larger for the loader */
 .loader-avatar-wrapper {
     width: 48px;
     height: 48px;
 }
 
-/* la boule elle-même */
+/* sphere itself */
 .sphere {
     position: absolute;
     inset: 0;
     border-radius: 50%;
     pointer-events: none;
-    /* on simule un vrai volume :
-       - radial main: couleur/ombre globale
-       - on laisse la highlight principale top-left
-       NOTE: on réinjecte --light-x / --light-y, très peu animées,
-       donc pas d'effet "gros oeil qui te regarde", juste un léger roll. */
+    /* fake real volume with:
+       - radial main gradient for overall color/shadow
+       - main highlight kept at the top-left
+       NOTE: re-inject --light-x / --light-y with tiny movement so
+       there is no unsettling eye effect, just a gentle roll. */
     background:
         radial-gradient(
             circle at var(--light-x) var(--light-y),
@@ -110,9 +110,9 @@ header.header-row {
     will-change: background-position;
 }
 
-/* glow de réflexion basse + highlight glossy haut-gauche */
+/* lower reflection glow + glossy highlight top-left */
 .sphere::before {
-    /* rebond de lumière en bas de la boule */
+    /* light bounce at the bottom of the sphere */
     content: "";
     position: absolute;
     inset: 0;
@@ -127,7 +127,7 @@ header.header-row {
 }
 
 .sphere::after {
-    /* flash brillant en haut-gauche */
+    /* bright flash on the top-left */
     content: "";
     position: absolute;
     width: 100%;
@@ -144,7 +144,7 @@ header.header-row {
     filter: blur(6px);
     opacity: 0.8;
     mix-blend-mode: screen;
-    /* petit mouvement organique, comme un reflet qui bouge légèrement */
+    /* small organic motion, like a subtle moving reflection */
     animation: specOrbit 6s ease-in-out infinite alternate;
 }
 
@@ -172,7 +172,7 @@ header.header-row {
     }
 }
 
-/* ---- FIN SPHÈRE -------------------------------------------------- */
+/* ---- END SPHERE -------------------------------------------------- */
 
 .aria-meta {
     display: flex;
@@ -313,7 +313,7 @@ button.generate-btn:active:enabled {
         0 24px 60px rgb(0 0 0 / 0.8),
         0 2px 4px rgb(0 0 0 / 0.6);
     padding: 20px;
-    display: none; /* caché tant qu'on n'a rien */
+    display: none; /* hidden until we have something */
     flex-direction: column;
     gap: 16px;
 
@@ -462,7 +462,7 @@ button.generate-btn:active:enabled {
     100% { background-position-x: 200%; }
 }
 
-/* FOOTER collé en bas */
+/* FOOTER pinned to the bottom */
 footer.page-footer {
     margin-top: auto;
     padding-top: 40px;

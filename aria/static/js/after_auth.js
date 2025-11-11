@@ -4,10 +4,10 @@ const STATUS_SUCCESS = "success";
 const STATUS_ERROR = "error";
 
 const LOADING_STEPS = [
-    "Création de ta playlist…",
-    "Sélection des titres…",
-    "Ajout des morceaux dans Spotify…",
-    "Presque prêt…"
+    "Building your playlist...",
+    "Picking the tracks...",
+    "Adding songs to Spotify...",
+    "Almost ready..."
 ];
 
 let loadingStepIndex = 0;
@@ -30,7 +30,7 @@ function clearPendingMarker() {
     try {
         localStorage.removeItem(AUTH_PENDING_STORAGE_KEY);
     } catch (err) {
-        console.error("Impossible de nettoyer le marqueur auth Spotify", err);
+        console.error("Failed to clear the Spotify auth marker", err);
     }
 }
 
@@ -43,7 +43,7 @@ function broadcastAuthResult(statusValue, extraPayload = {}) {
                 const parsed = JSON.parse(raw);
                 pendingId = parsed && parsed.id ? parsed.id : null;
             } catch (parseErr) {
-                console.error("Impossible de parser le marqueur auth Spotify", parseErr);
+                console.error("Failed to parse the Spotify auth marker", parseErr);
             }
         }
         const payload = {
@@ -54,7 +54,7 @@ function broadcastAuthResult(statusValue, extraPayload = {}) {
         };
         localStorage.setItem(AUTH_RESULT_STORAGE_KEY, JSON.stringify(payload));
     } catch (err) {
-        console.error("Impossible de diffuser le statut auth Spotify", err);
+        console.error("Failed to broadcast the Spotify auth status", err);
     }
 }
 
@@ -88,8 +88,8 @@ function handleSuccess() {
     clearPendingMarker();
 
     if (window.opener && !window.opener.closed) {
-        loaderTitleEl.textContent = "Connexion réussie";
-        loaderStepEl.textContent = "Retourne sur l’onglet Aria, on termine la playlist pour toi.";
+        loaderTitleEl.textContent = "Connection successful";
+        loaderStepEl.textContent = "Head back to the Aria tab, we are wrapping up the playlist for you.";
         if (progressBarEl) {
             progressBarEl.style.display = "none";
         }
@@ -109,8 +109,8 @@ function handleSuccess() {
             window.close();
         }, 1200);
     } else {
-        loaderTitleEl.textContent = "Connexion réussie";
-        loaderStepEl.textContent = "Retour vers Aria…";
+        loaderTitleEl.textContent = "Connection successful";
+        loaderStepEl.textContent = "Heading back to Aria...";
         if (progressBarEl) {
             progressBarEl.style.display = "none";
         }
@@ -126,13 +126,13 @@ function handleSuccess() {
 
 function handleError() {
     stopStepCycle();
-    loaderTitleEl.textContent = "Connexion Spotify interrompue";
-    loaderStepEl.textContent = statusMessage || "Réessaie la génération depuis Aria.";
+    loaderTitleEl.textContent = "Spotify sign-in interrupted";
+    loaderStepEl.textContent = statusMessage || "Try generating again from Aria.";
     if (progressBarEl) {
         progressBarEl.style.display = "none";
     }
     errorEl.style.display = "block";
-    errorEl.textContent = statusMessage || "Erreur inconnue.";
+    errorEl.textContent = statusMessage || "Unknown error.";
 
     broadcastAuthResult("error", {
         error: statusMessage || "unknown_error",

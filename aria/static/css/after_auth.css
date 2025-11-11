@@ -49,7 +49,7 @@ body {
     to   { opacity: 1; transform: translateY(0); }
 }
 
-/* === Sphère Aria (même DA que home) =============================== */
+/* === ARIA SPHERE (same art direction as home) =============================== */
 
 .sphere-wrapper {
     position: relative;
@@ -148,7 +148,7 @@ body {
     }
 }
 
-/* === Texte & barre de progression ================================ */
+/* === TEXT & PROGRESS BAR ================================ */
 
 .loader-title {
     font-size: 14px;
@@ -191,11 +191,11 @@ body {
     100% { background-position-x: 200%; }
 }
 
-/* message d'erreur si jamais ça plante */
+/* error message if generation fails */
 .error-msg {
     font-size: 12px;
     line-height: 1.4;
-    color: #f87171; /* rouge soft */
+    color: #f87171; /* soft red */
     text-align: center;
     display: none;
 }
